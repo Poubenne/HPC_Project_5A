@@ -11,12 +11,15 @@ void testCUDA(cudaError_t error, const char *file, int line)  {
 
 #define testCUDA(error) (testCUDA(error, __FILE__ , __LINE__))
 
-__global__ void mergeSmall_k(const int* A, const int* B, int* &M, int N1, int N2)
+__global__ void mergeSmall_k(const int* A, const int* B, int* M, int N1, int N2)
 {
 
     // Test with shared memory
 
     unsigned long idx = threadIdx.x;
+
+    if (idx >= N1 + N2)
+        return;
 
     int K[2];
     int P[2];
