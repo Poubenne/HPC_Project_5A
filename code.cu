@@ -31,7 +31,7 @@ void QuickSort( int* array , size_t end) {
         array[cursor] = swap_variable;
 
         QuickSort(array , cursor );
-        QuickSort(array + cursor , end - cursor - 1);
+        QuickSort(array + cursor + 1, end - cursor - 1);
     }
 }
 
@@ -41,13 +41,12 @@ void QuickSort( int* array , size_t end) {
     * @param The size of the array
     */
 void GenerateRandomArray( int** arr, const size_t size ) {
-    srand(time(NULL));
-    *array = (int*) malloc(size*sizeof(int));
+    *arr = (int*) malloc(size*sizeof(int));
 
     for (size_t i=0 ; i<size ; i++) {
         (*arr)[i] = rand()%(5*size);
     }
-    QuickSort(arr, size);
+    QuickSort(*arr, size);
 }
 
 
@@ -108,7 +107,7 @@ void PrintList(int* A, int N){
 
 int main()
 {
-
+    srand(time(NULL));
     int* A;
     int NA = 10;
     GenerateRandomArray(&A, NA);
@@ -136,10 +135,10 @@ int main()
     testCUDA(cudaMemcpy(A_GPU, A, NA * sizeof(int), cudaMemcpyHostToDevice));
     testCUDA(cudaMemcpy(B_GPU, B, NB * sizeof(int), cudaMemcpyHostToDevice));
 
-    int NB = 1;
+    int N_Blocks = 1;
     int NTPB = 1024;
 
-    mergeSmall_k<<<NB, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
+    mergeSmall_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
 
     testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
 
