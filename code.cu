@@ -53,7 +53,9 @@ void GenerateRandomArray( int** arr, const size_t size ) {
 __global__ void mergeSmall_k(const int* A, const int* B, int* M, const int NA, const int NB) {
     // Test with shared memory
 
-    unsigned long idx = threadIdx.x;
+    //unsigned long idx = threadIdx.x;
+    unsigned long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    //printf("My ID : %lu\n", idx);
 
     if (idx >= NA + NB)
         return;
@@ -105,11 +107,19 @@ void PrintList(int* A, int N){
     printf("\n");
 }
 
+bool IsSorted(int* arr, int size){
+    for (int i=1;i<size;i++){
+        if (arr[i-1] > arr[i])
+            return false;
+    }
+    return true;
+}
+
 int main()
 {
     srand(time(NULL));
     int* A;
-    int NA = 10;
+    int NA = 1024;
     GenerateRandomArray(&A, NA);
     if ( NA < 50 ) {
         PrintList(A, NA);
@@ -117,7 +127,7 @@ int main()
 
 
     int* B;
-    int NB = 10;
+    int NB = 1024;
     GenerateRandomArray(&B, NB);
     if ( NB < 50 ) {
         PrintList(B, NB);
@@ -127,6 +137,9 @@ int main()
 
     int* A_GPU, *B_GPU, *M_GPU;
 
+    float TimerV;
+    cudaEvent_t start, stop;
+
     testCUDA(cudaMalloc(&M_GPU, (NA + NB) * sizeof(int)));
     testCUDA(cudaMalloc(&A_GPU, NA * sizeof(int)));
     testCUDA(cudaMalloc(&B_GPU, NB * sizeof(int)));
@@ -135,15 +148,29 @@ int main()
     testCUDA(cudaMemcpy(A_GPU, A, NA * sizeof(int), cudaMemcpyHostToDevice));
     testCUDA(cudaMemcpy(B_GPU, B, NB * sizeof(int), cudaMemcpyHostToDevice));
 
-    int N_Blocks = 1;
+    int N_Blocks = 2;
     int NTPB = 1024;
+
+    testCUDA(cudaEventCreate(&start));
+    testCUDA(cudaEventCreate(&stop));
+    testCUDA(cudaEventRecord(start, 0));
 
     mergeSmall_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
 
+    testCUDA(cudaEventRecord(stop, 0));
+    testCUDA(cudaEventSynchronize(stop));
+    testCUDA(cudaEventElapsedTime(&TimerV, start, stop));
+
+
     testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
 
-    PrintList(M, (NA + NB));
+    if (NA + NB < 100)
+        PrintList(M, (NA + NB));
 
+    printf("M is sorted : %d\n", IsSorted(M, NA + NB));
+
+    printf("Time taken to merge arrays : %f s\n", TimerV / 1000);
+    
     testCUDA(cudaFree(A_GPU));
     testCUDA(cudaFree(B_GPU));
     testCUDA(cudaFree(M_GPU));
