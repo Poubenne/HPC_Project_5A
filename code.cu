@@ -107,57 +107,19 @@ void PrintList(int* A, int N){
     printf("\n");
 }
 
-
-void BenchmarkEx1(){
-    int* A;
-    int NA = 10;
-    GenerateRandomArray(&A, NA);
-    if ( NA < 50 ) {
-        PrintList(A, NA);
+bool IsSorted(int* arr, int size){
+    for (int i=1;i<size;i++){
+        if (arr[i-1] > arr[i])
+            return false;
     }
-
-
-    int* B;
-    int NB = 10;
-    GenerateRandomArray(&B, NB);
-    if ( NB < 50 ) {
-        PrintList(B, NB);
-    }
-
-    int* M = (int*) malloc((NA + NB) * sizeof(int));
-
-    int* A_GPU, *B_GPU, *M_GPU;
-
-    testCUDA(cudaMalloc(&M_GPU, (NA + NB) * sizeof(int)));
-    testCUDA(cudaMalloc(&A_GPU, NA * sizeof(int)));
-    testCUDA(cudaMalloc(&B_GPU, NB * sizeof(int)));
-
-
-    testCUDA(cudaMemcpy(A_GPU, A, NA * sizeof(int), cudaMemcpyHostToDevice));
-    testCUDA(cudaMemcpy(B_GPU, B, NB * sizeof(int), cudaMemcpyHostToDevice));
-
-    int N_Blocks = 1;
-    int NTPB = 1024;
-
-    mergeSmall_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
-
-    testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
-
-    if (NA + NB < 100)
-        PrintList(M, (NA + NB));
-
-    testCUDA(cudaFree(A_GPU));
-    testCUDA(cudaFree(B_GPU));
-    testCUDA(cudaFree(M_GPU));
-    free(M);
+    return true;
 }
-
 
 int main()
 {
     srand(time(NULL));
     int* A;
-    int NA = 2048;
+    int NA = 1024;
     GenerateRandomArray(&A, NA);
     if ( NA < 50 ) {
         PrintList(A, NA);
@@ -165,7 +127,7 @@ int main()
 
 
     int* B;
-    int NB = 2048;
+    int NB = 1024;
     GenerateRandomArray(&B, NB);
     if ( NB < 50 ) {
         PrintList(B, NB);
@@ -204,6 +166,8 @@ int main()
 
     if (NA + NB < 100)
         PrintList(M, (NA + NB));
+
+    printf("M is sorted : %d\n", IsSorted(M, NA + NB));
 
     printf("Time taken to merge arrays : %f s\n", TimerV / 1000);
     
