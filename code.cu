@@ -107,9 +107,8 @@ void PrintList(int* A, int N){
     printf("\n");
 }
 
-int main()
-{
-    srand(time(NULL));
+
+void BenchmarkEx1(){
     int* A;
     int NA = 10;
     GenerateRandomArray(&A, NA);
@@ -144,8 +143,70 @@ int main()
 
     testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
 
-    PrintList(M, (NA + NB));
+    if (NA + NB < 100)
+        PrintList(M, (NA + NB));
 
+    testCUDA(cudaFree(A_GPU));
+    testCUDA(cudaFree(B_GPU));
+    testCUDA(cudaFree(M_GPU));
+    free(M);
+}
+
+
+int main()
+{
+    srand(time(NULL));
+    int* A;
+    int NA = 2048;
+    GenerateRandomArray(&A, NA);
+    if ( NA < 50 ) {
+        PrintList(A, NA);
+    }
+
+
+    int* B;
+    int NB = 2048;
+    GenerateRandomArray(&B, NB);
+    if ( NB < 50 ) {
+        PrintList(B, NB);
+    }
+
+    int* M = (int*) malloc((NA + NB) * sizeof(int));
+
+    int* A_GPU, *B_GPU, *M_GPU;
+
+    float TimerV;
+    cudaEvent_t start, stop;
+
+    testCUDA(cudaMalloc(&M_GPU, (NA + NB) * sizeof(int)));
+    testCUDA(cudaMalloc(&A_GPU, NA * sizeof(int)));
+    testCUDA(cudaMalloc(&B_GPU, NB * sizeof(int)));
+
+
+    testCUDA(cudaMemcpy(A_GPU, A, NA * sizeof(int), cudaMemcpyHostToDevice));
+    testCUDA(cudaMemcpy(B_GPU, B, NB * sizeof(int), cudaMemcpyHostToDevice));
+
+    int N_Blocks = 2;
+    int NTPB = 1024;
+
+    testCUDA(cudaEventCreate(&start));
+    testCUDA(cudaEventCreate(&stop));
+    testCUDA(cudaEventRecord(start, 0));
+
+    mergeSmall_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
+
+    testCUDA(cudaEventRecord(stop, 0));
+    testCUDA(cudaEventSynchronize(stop));
+    testCUDA(cudaEventElapsedTime(&TimerV, start, stop));
+
+
+    testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
+
+    if (NA + NB < 100)
+        PrintList(M, (NA + NB));
+
+    printf("Time taken to merge arrays : %f s\n", TimerV / 1000);
+    
     testCUDA(cudaFree(A_GPU));
     testCUDA(cudaFree(B_GPU));
     testCUDA(cudaFree(M_GPU));
