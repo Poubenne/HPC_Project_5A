@@ -53,7 +53,9 @@ void GenerateRandomArray( int** arr, const size_t size ) {
 __global__ void mergeSmall_k(const int* A, const int* B, int* M, const int NA, const int NB) {
     // Test with shared memory
 
-    unsigned long idx = threadIdx.x;
+    //unsigned long idx = threadIdx.x;
+    unsigned long idx = blockIdx.x * blockDim.x + threadIdx.x;
+    //printf("My ID : %lu\n", idx);
 
     if (idx >= NA + NB)
         return;
