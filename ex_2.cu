@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <time.h>
 
-size_t N=1024;
-int d = 8;
+#define N 1024
+#define d 8
 
 void testCUDA(cudaError_t error, const char *file, int line)  {
 	if (error != cudaSuccess) {
@@ -55,22 +55,24 @@ bool IsSortedDescending(int* array, size_t length) {
     }
     return true;
 }
+
 /*
     * @brief Generates a random array
     * @param arr the array that'll be malloced and filled
-    * @param The size of the array
+    * @param length The size of the array
     */
-void GenerateRandomArray( int** arr, const size_t size ) {
-    *arr = (int*) malloc(size*sizeof(int));
+void GenerateRandomArray( int** arr, const size_t length ) {
+    *arr = (int*) malloc(length*sizeof(int));
 
-    for (size_t i=0 ; i<size ; i++) {
-        (*arr)[i] = rand()%(5*size);
+    for (size_t i=0 ; i<length ; i++) {
+        (*arr)[i] = rand()%(5*length);
     }
-    QuickSort(*arr, size);
+    QuickSort(*arr, length);
 }
-void PrintList(int* A, size_t N){
+
+void PrintList(int* A, size_t length){
     
-    for (int i = 0; i < N; i++) {
+    for (int i = 0; i < length; i++) {
         printf("%d ", A[i]);
     }
     printf("\n");
@@ -90,7 +92,7 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
 
 //  the thread works on M[gbx][tidx]
 
-    if ( gbx <= N ) {// excedent block
+    if ( gbx >= N ) {// excedent block
         return;
     }
 
@@ -100,7 +102,7 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
     int K[2];
     int P[2];
 
-    if (idx > NA[gbx]) {
+    if (tidx > NA[gbx]) {
         K[0] = tidx - NA[gbx];
         K[1] = NA[gbx];
 
@@ -118,12 +120,12 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
         int offset = abs((K[1] - P[1]) / 2);
         int Q[] = {K[0] + offset, K[1] - offset};
 
-        if (Q[1] >= 0 && Q[0] <= NB[gbx] && (Q[1] == NA[gbx] || Q[0] == 0 || A[gbx][Q[1]] > B[Q[0] - 1])) {
+        if (Q[1] >= 0 && Q[0] <= NB[gbx] && (Q[1] == NA[gbx] || Q[0] == 0 || A[gbx][Q[1]] > B[gbx][Q[0] - 1])) {
             if (Q[0] == NB[gbx] || Q[1] == 0 || A[gbx][Q[1] - 1] <= B[gbx][Q[0]]) {
                 if (Q[1] < NA[gbx] && (Q[0] == NB[gbx] || A[gbx][Q[1]] <= B[gbx][Q[0]]))
-                    M[gbx][idx] = A[gbx][Q[1]];
+                    M[gbx][tidx] = A[gbx][Q[1]];
                 else
-                    M[gbx][idx] = B[gbx][Q[0]];
+                    M[gbx][tidx] = B[gbx][Q[0]];
                 break;
             } else {
                 K[0] = Q[0] + 1;
@@ -140,70 +142,109 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
 
 int main()
 {
+    printf("Creating arrays...\t");
     srand(time(NULL));
-    int a_sizes[] = {256, 512, 768};
+    int a_sizes[] = {1, 4, 6};
 
     int** A = (int**) malloc(N*sizeof(int*));
-    size_t* NA = (int*) malloc(N*sizeof(size_t));
+    size_t* NA = (size_t*) malloc(N*sizeof(size_t));
     for (size_t i=0;i<N;i++) {
         NA[i] = a_sizes[i%3];
-        A[i] = (int*) malloc(NA[i]*sizeof(int));
-        GenerateRandomArray(&A, NA[i]);
+        GenerateRandomArray(A+i, NA[i]);
     }
 
 
     int** B = (int**) malloc(N*sizeof(int*));
-    size_t* NB = (int*) malloc(N*sizeof(size_t));
+    size_t* NB = (size_t*) malloc(N*sizeof(size_t));
     for (size_t i=0;i<N;i++) {
-        NB[i] = 1024 - NA[i];
-        B[i] = (int*) malloc(NB[i]*sizeof(int));
-        GenerateRandomArray(&B, NB[i]);
+        NB[i] = d - NA[i];
+        GenerateRandomArray(B+i, NB[i]);
     }
-
-    int** M = (int**) malloc(N * sizeof(int*));
-    for (size_t i=0;i<N;i++) {
-        M[i] = (int*) malloc((NB[i]+NA[i])*sizeof(size_t));
-    }
+    printf(" Done!\n");
 
 
 //  We could create contiguous arrays...
+    printf("Creating GPU arrays...\t");
     int** A_GPU;
     int** B_GPU;
     int** M_GPU;
-    testCUDA(cudaMalloc(&A_GPU, N * sizeof(int*)));
-    testCUDA(cudaMalloc(&B_GPU, N * sizeof(int*)));
+
+    size_t* NA_GPU;
+    size_t* NB_GPU;
+
+    testCUDA(cudaMalloc(&NA_GPU, N * sizeof(size_t)));
+    testCUDA(cudaMalloc(&NB_GPU, N * sizeof(size_t)));
+
+
+    int** tempo_array;
+    tempo_array = (int**) malloc(N*sizeof(int*));
+
+//  Creating M_GPU
+    printf("Creating M_GPU...\t");
     testCUDA(cudaMalloc(&M_GPU, N * sizeof(int*)));
-
-
     for (size_t i=0;i<N;i++) {
-        testCUDA(cudaMalloc(M_GPU+i, 1024 * sizeof(int)));
-        testCUDA(cudaMalloc(A_GPU+i, NA[i] * sizeof(int)));
-        testCUDA(cudaMalloc(B_GPU+i, NB[i] * sizeof(int)));
-
-        testCUDA(cudaMemcpy(A_GPU[i], A[i], NA[i] * sizeof(int), cudaMemcpyHostToDevice));
-        testCUDA(cudaMemcpy(B_GPU[i], B[i], NB[i] * sizeof(int), cudaMemcpyHostToDevice));
+        testCUDA(cudaMalloc(tempo_array+i, (NB[i]+NA[i]) * sizeof(int)));
     }
+    testCUDA(cudaMemcpy(M_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
+    printf("Done!\n");
 
+//  Creating A_GPU
+    printf("Creating A_GPU...\t");
+    testCUDA(cudaMalloc(&A_GPU, N * sizeof(int*)));
+    for (size_t i=0;i<N;i++) {
+        testCUDA(cudaMalloc(tempo_array+i, NA[i] * sizeof(int)));
+        testCUDA(cudaMemcpy(tempo_array[i], A[i], NA[i] * sizeof(int), cudaMemcpyHostToDevice));
+    }
+    testCUDA(cudaMemcpy(A_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
+    printf("Done!\n");
 
+//  Creating B_GPU
+    printf("Creating B_GPU...\t");
+    testCUDA(cudaMalloc(&B_GPU, N * sizeof(int*)));
+    for (size_t i=0;i<N;i++) {
+        testCUDA(cudaMalloc(tempo_array+i, NB[i] * sizeof(int)));
+        testCUDA(cudaMemcpy(tempo_array[i], B[i], NB[i] * sizeof(int), cudaMemcpyHostToDevice));
+    }
+    testCUDA(cudaMemcpy(B_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
+    printf("Done!\n");
+
+//  Filling the arrays 
+    printf("Copying the sizes...\t");
+    testCUDA(cudaMemcpy(NA_GPU, NA, N * sizeof(size_t), cudaMemcpyHostToDevice));
+    testCUDA(cudaMemcpy(NB_GPU, NB, N * sizeof(size_t), cudaMemcpyHostToDevice));
+    printf(" Done!\n");
 
 
 
     int N_Blocks = N/d+10;
     int NTPB = 1024;
-//    int NTPB = 1024;
+    
+    printf("Merging...\t");
+    mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, NA_GPU, NB_GPU);
+    printf(" Done!\n");
+    
 
-    mergeSmallBatch_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
+    int** M = (int**) malloc(N * sizeof(int*));
+    int** tempo = (int**) malloc(N * sizeof(int*));
+    testCUDA(cudaMemcpy(tempo, M_GPU, N * sizeof(int*), cudaMemcpyDeviceToHost));
+    printf("M created\n");
+    for (size_t i=0;i<N;i++) {
+        M[i] = (int*) malloc(d * sizeof(int));
+        testCUDA(cudaMemcpy(M[i], tempo[i], d * sizeof(int), cudaMemcpyDeviceToHost));
+    }
+    printf("M filled\n");
 
-    testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
+
 
 //    PrintList(M, (NA + NB));
-
-    for (size_t i=0;i<N;i++) {
-        if (! IsSortedAscending(M[i]) ) {
-            printf("aïe aïe aïe...\n");
+    printf("Verifying result\n");
+    for (size_t i=0;i<N;i++) {  
+        if (! IsSortedAscending(M[i],d) ) {
+            printf("The result isn't correct...\n");
             exit(EXIT_FAILURE);
         }
     }
+    printf("The result is correct!\n");
 
 
 
@@ -215,7 +256,6 @@ int main()
     for (size_t i=0;i<N;i++) {
         free(A[i]);
         free(B[i]);
-        free(M[i]);
     }
     free(A);
     free(B);
