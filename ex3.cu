@@ -229,12 +229,12 @@ void SortSmall(int **M, const size_t* NM)
 
     int j, k;
     /* Major step */
-    for (k = 2; k <= d; k <<= 1) {
+    for (k = 2; k <= NM[0]; k <<= 1) {
         /* Minor step */
         for (j=k>>1; j>0; j=j>>1) {
             //printf("k : %d || j : %d\n", k, j);
             //SortSmall_k<<<N_Blocks, NTPB>>>(M_GPU, NM_GPU, j, k);
-            SortSmall_k<<<N, NTPB>>>(M_GPU, NM_GPU, j, k);
+            SortSmall_k<<<N, NM[0]>>>(M_GPU, NM_GPU, j, k);
             //printf("\n");
         }
     }
@@ -244,10 +244,19 @@ void SortSmall(int **M, const size_t* NM)
     printf("Importing M from GPU...\t");
 
     for (size_t i=0;i<N;i++) {
-        testCUDA(cudaMemcpy(M[i], tempo_array[i], d * sizeof(int), cudaMemcpyDeviceToHost));
+        testCUDA(cudaMemcpy(M[i], tempo_array[i], NM[i] * sizeof(int), cudaMemcpyDeviceToHost));
     }
 
     printf("M successfully imported from GPU\n");
+
+    printf("Verifying Sort result\n");
+    for (size_t i=0;i<N;i++) {  
+        if (! IsSortedAscending(M[i],(size_t)NM[i]) ) {
+            printf("The result isn't correct..., i = %zd\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+    printf("The result is correct!\n");
 
 //TODO
 /*  
@@ -267,19 +276,29 @@ void SortSmall(int **M, const size_t* NM)
 
 void MergeInto(int** M, size_t* NM){
 
-    int** A = M;
-    int** B = M + N / 2;
-    size_t* NA = NM;
-    size_t* NB = NM + N / 2;
+    
     int size = N / 2;
     int elements_per_array = d;
+    int ** merged_list = M;
+    size_t * NMerged = NM;
 
     while(size != 0){
+        printf("Size : %d\n", size);
+        int** A = merged_list;
+        int** B = merged_list + size;
+        size_t* NA = NMerged;
+        size_t* NB = NMerged + size;
+
 
         int ** merged_list = (int**) malloc(size * sizeof(int*));
+        size_t* NMerged = (size_t*) malloc(size * sizeof(int));
+
+        for (int i = 0; i < size; i++){
+            NMerged[i] = NA[i] + NB[i];
+        }
 
         int** tempo_array;
-        tempo_array = (int**) malloc(size*sizeof(int*));
+        tempo_array = (int**) malloc(size * sizeof(int*));
 
         int** merged_list_GPU;
         int** A_GPU;
@@ -295,6 +314,7 @@ void MergeInto(int** M, size_t* NM){
         testCUDA(cudaMalloc(&merged_list_GPU, size * sizeof(int*)));
         for (size_t i=0;i<size;i++) {
             testCUDA(cudaMalloc(tempo_array+i, elements_per_array * sizeof(int)));
+            testCUDA(cudaMemcpy(tempo_array[i], merged_list[i], NMerged[i] * sizeof(int), cudaMemcpyHostToDevice));
         }
         testCUDA(cudaMemcpy(merged_list_GPU, tempo_array, size * sizeof(int*), cudaMemcpyHostToDevice));
         printf("Done!\r");
@@ -303,14 +323,16 @@ void MergeInto(int** M, size_t* NM){
         testCUDA(cudaMalloc(&A_GPU, size * sizeof(int*)));
         for (size_t i=0;i<size;i++) {
             testCUDA(cudaMalloc(tempo_array+i, elements_per_array * sizeof(int)));
+            testCUDA(cudaMemcpy(tempo_array[i], A[i], NA[i] * sizeof(int), cudaMemcpyHostToDevice));
         }
         testCUDA(cudaMemcpy(A_GPU, tempo_array, size * sizeof(int*), cudaMemcpyHostToDevice));
         printf("Done!\r");
 
-        printf("Creating Merged Array on GPU...\t");
+        printf("Creating B on GPU...\t");
         testCUDA(cudaMalloc(&B_GPU, size * sizeof(int*)));
         for (size_t i=0;i<size;i++) {
             testCUDA(cudaMalloc(tempo_array+i, elements_per_array * sizeof(int)));
+            testCUDA(cudaMemcpy(tempo_array[i], B[i], NB[i] * sizeof(int), cudaMemcpyHostToDevice));
         }
         testCUDA(cudaMemcpy(B_GPU, tempo_array, size * sizeof(int*), cudaMemcpyHostToDevice));
         printf("Done!\r");
@@ -319,25 +341,28 @@ void MergeInto(int** M, size_t* NM){
         printf("Copying the sizes...\t");
         testCUDA(cudaMemcpy(NA_GPU, NA, size * sizeof(size_t), cudaMemcpyHostToDevice));
         testCUDA(cudaMemcpy(NB_GPU, NB, size * sizeof(size_t), cudaMemcpyHostToDevice));
-        printf(" Done!\n");
+        printf(" Done!\r");
         
         
-        mergeSmallBatch_k<<<size, elements_per_array>>>(A, B, merged_list_GPU, NA_GPU, NB_GPU);
+        mergeSmallBatch_k<<<size, elements_per_array>>>((const int**)A_GPU, (const int**)B_GPU, merged_list_GPU, (const size_t*)NA_GPU, (const size_t*)NB_GPU);
         
 
 
-        testCUDA(cudaMemcpy(tempo_array, merged_list_GPU, N * sizeof(int*), cudaMemcpyDeviceToHost));
+        testCUDA(cudaMemcpy(tempo_array, merged_list_GPU, size * sizeof(int*), cudaMemcpyDeviceToHost));
 
         for (size_t i=0;i<N;i++) {
-            testCUDA(cudaMemcpy(M[i], tempo_array[i], d * sizeof(int), cudaMemcpyDeviceToHost));
+            testCUDA(cudaMemcpy(merged_list[i], tempo_array[i], NMerged[i] * sizeof(int), cudaMemcpyDeviceToHost));
         }
 
 
         testCUDA(cudaFree(A_GPU));
         testCUDA(cudaFree(B_GPU));
+        testCUDA(cudaFree(NA_GPU));
+        testCUDA(cudaFree(NB_GPU));
 
         free(merged_list);
         free(tempo_array);
+        free(NMerged);
 
         elements_per_array *= 2;
         size /= 2;
@@ -417,7 +442,7 @@ void GlobalMerge(int** A, int** B, const size_t* NA, const size_t* NB){
 
 
     printf("Merging...\t");
-    mergeSmallBatch_k(A_GPU, B_GPU, M_GPU, NA_GPU, NB_GPU);
+    mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, (const size_t*)NA_GPU, (const size_t*)NB_GPU);
     printf("Done!\n");
 
 
@@ -432,7 +457,7 @@ void GlobalMerge(int** A, int** B, const size_t* NA, const size_t* NB){
 
 
     /*Step 3: Merge all M_i together until only one array is left*/
-
+    MergeInto(M, NM);
 
 }
 
@@ -445,7 +470,8 @@ int main(){
     int** A = (int**) malloc(N*sizeof(int*));
     size_t* NA = (size_t*) malloc(N*sizeof(size_t));
     for (size_t i=0;i<N;i++) {
-        NA[i] = a_sizes[i%3];
+        //NA[i] = a_sizes[i%3];
+        NA[i] = 512;
         GenerateUnsortedRandomArray(A+i, NA[i]);
     }
 

@@ -353,7 +353,7 @@ int main()
     
     printf("Merging...\t");
     mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, NA_GPU, NB_GPU);
-    printf(" Done!\n");
+    printf("Done!\n");
     
 
     int** M = (int**) malloc(N * sizeof(int*));
