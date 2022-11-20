@@ -295,6 +295,7 @@ void MergeInto(int** M, size_t* NM){
 
         for (int i = 0; i < size; i++){
             NMerged[i] = NA[i] + NB[i];
+            merged_list[i] = (int*) malloc(NMerged[i] * sizeof(int));
         }
 
         int** tempo_array;
@@ -313,8 +314,8 @@ void MergeInto(int** M, size_t* NM){
         printf("Creating Merged Array on GPU...\t");
         testCUDA(cudaMalloc(&merged_list_GPU, size * sizeof(int*)));
         for (size_t i=0;i<size;i++) {
-            testCUDA(cudaMalloc(tempo_array+i, elements_per_array * sizeof(int)));
-            testCUDA(cudaMemcpy(tempo_array[i], merged_list[i], NMerged[i] * sizeof(int), cudaMemcpyHostToDevice));
+            testCUDA(cudaMalloc(tempo_array+i, NMerged[i] * sizeof(int)));
+            //testCUDA(cudaMemcpy(tempo_array[i], merged_list[i], NMerged[i] * sizeof(int), cudaMemcpyHostToDevice));
         }
         testCUDA(cudaMemcpy(merged_list_GPU, tempo_array, size * sizeof(int*), cudaMemcpyHostToDevice));
         printf("Done!\r");
@@ -360,9 +361,9 @@ void MergeInto(int** M, size_t* NM){
         testCUDA(cudaFree(NA_GPU));
         testCUDA(cudaFree(NB_GPU));
 
-        free(merged_list);
+        //free(merged_list);
         free(tempo_array);
-        free(NMerged);
+        //free(NMerged);
 
         elements_per_array *= 2;
         size /= 2;
