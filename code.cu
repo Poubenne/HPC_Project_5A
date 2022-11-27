@@ -119,7 +119,8 @@ int main()
 {
     srand(time(NULL));
     int* A;
-    int NA = 1024;
+    int N = 400;
+    int NA = N;
     GenerateRandomArray(&A, NA);
     if ( NA < 50 ) {
         PrintList(A, NA);
@@ -127,7 +128,7 @@ int main()
 
 
     int* B;
-    int NB = 1024;
+    int NB = N;
     GenerateRandomArray(&B, NB);
     if ( NB < 50 ) {
         PrintList(B, NB);
@@ -138,6 +139,7 @@ int main()
     int* A_GPU, *B_GPU, *M_GPU;
 
     float TimerV;
+    int niter = 1000000;
     cudaEvent_t start, stop;
 
     testCUDA(cudaMalloc(&M_GPU, (NA + NB) * sizeof(int)));
@@ -155,7 +157,8 @@ int main()
     testCUDA(cudaEventCreate(&stop));
     testCUDA(cudaEventRecord(start, 0));
 
-    mergeSmall_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
+    for(int i = 0; i < niter; i++)
+        mergeSmall_k<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB);
 
     testCUDA(cudaEventRecord(stop, 0));
     testCUDA(cudaEventSynchronize(stop));
@@ -169,7 +172,7 @@ int main()
 
     printf("M is sorted : %d\n", IsSorted(M, NA + NB));
 
-    printf("Time taken to merge arrays : %f s\n", TimerV / 1000);
+    printf("Average time taken to merge arrays : %2f s\n", (TimerV / 1000) / niter);
     
     testCUDA(cudaFree(A_GPU));
     testCUDA(cudaFree(B_GPU));
