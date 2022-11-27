@@ -13,17 +13,17 @@
     * @param n_blocks The number of GPU blocks, this determines the subdivision of M and the number of threads per block
     * @param n_threads The number of threads per block
 */
-void Sort_k(const int* M, const size_t d, const size_t n_blocks, const size_t n_threads) {
+void Sort_k(const int* M, const size_t d, const size_t n_blocks) {
 //  ============================== CPU sorting variables ================================
-    size_t n_threads = ;
+    size_t n_threads = d/n_blocks;
     size_t size_sub_arrays = d/n_blocks;
+    size_t size_M_GPU = n_blocks;
+    size_t size_M_GPU_merged = size_M_GPU/2;
 //  TODO : change the number of blocks/threads if too big, raise error if too small
 //  
 //  ============================== GPU variables creation ===============================
-    int** M_GPU;
 
-    void* tempo_array;
-    tempo_array = malloc(n_blocks*sizeof(int*));
+
 
 //  Creating M_GPU
     testCUDA(cudaMalloc(&M_GPU, n_blocks * sizeof(int*)));
@@ -33,37 +33,104 @@ void Sort_k(const int* M, const size_t d, const size_t n_blocks, const size_t n_
     testCUDA(cudaMemcpy(M_GPU, tempo_array, n_blocks * sizeof(int*), cudaMemcpyHostToDevice));
 
 
-    SortSmall(M, const size_t* NM, n_block, n_threads);
 
 
     for (int i = 0; i < N; i++){
         testCUDA(cudaMemcpy(&M[i], &M_GPU[i], (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
     }
-
+//  =========================== Splitting M into sub-arrays =============================
+    int** M_splitted = (int**) malloc(n_blocks*sizeof(int*));
+    for (size_t i=0;i<n_blocks;i++) {
+        M_splitted[i] = M+i*n_threads;
+    }
 //  ============================= Sorting the sub arrays ================================
 //  Here, each block sorts an array
-//  TODO : blocks are preferably of size > 32 : add a check, that changes number_of_sub_arrays, if it's too high, and prints a warning
+    SortSmall(M_splitted, n_block, n_threads);
+
+//  TODO : free M_splitted
+
+//  ============================= Preparing the GPU arrays ==============================
+    //  Single dimension arrays, that store contiguously all the values in M
+    int* Actual_M_GPU;
+    int* Actual_M_GPU_merged;
+
+    testCUDA(cudaMalloc(&Actual_M_GPU, d * sizeof(int)));
+    testCUDA(cudaMemcpy(M, Actual_M_GPU, d * sizeof(int), cudaMemcpyDeviceToHost));
+
+    testCUDA(cudaMalloc(&Actual_M_GPU_merged, d * sizeof(int)));
 
 
+    //  2-dimensionnal arrays that are on the GPU for the merging
+    int* * M_GPU;
+    int* * M_GPU_merged;
+    testCUDA(cudaMalloc(&M_GPU, size_M_GPU * sizeof(int*)));
+    testCUDA(cudaMalloc(&M_GPU_merged, size_M_GPU_merged * sizeof(int*)));
+
+    // this is necessary to fill M_GPU and M_GPU_merged
+    void* tempo_array;
+    tempo_array = malloc(d*sizeof(int*));
+    for (size_t i=0; i<d; i+=size_sub_arrays) {
+        tempo_array[i] = Actual_M_GPU + i;
+    }
+    testCUDA(cudaMemcpy(M_GPU, tempo_array, size_M_GPU * sizeof(int*), cudaMemcpyDeviceToHost));
+
+    size_sub_arrays = size_sub_arrays*2;
+    for (size_t i=0; i<d; i+=size_sub_arrays) {
+        tempo_array[i] = Actual_M_GPU_merged + i;
+    }
+    testCUDA(cudaMemcpy(M_GPU_merged, tempo_array, size_M_GPU_merged * sizeof(int*), cudaMemcpyDeviceToHost));
+
+    int** swap_pointer;
 //  ============================= Merging the small arrays ==============================
-    int** M_GPU_merged;
-
     while ( size_sub_arrays <= n_threads ) {
-        free(tempo_array);
-        tempo_array = malloc(n_blocks/2*sizeof(int*));
-        testCUDA(cudaMalloc(&M_GPU_merged, n_blocks/2 * sizeof(int*)));
-        for (size_t i=0;i<n_blocks/2;i++) {
-            testCUDA(cudaMalloc(tempo_array+i, 2 * size_sub_arrays * sizeof(int)));
-        }
-        testCUDA(cudaMemcpy(M_GPU_merged, tempo_array, n_blocks/2 * sizeof(int*), cudaMemcpyHostToDevice));
+        mergeSmallBatch_k(M_GPU, &(M_GPU[size_M_GPU_merged]), M_GPU_merged, size_MPU_merged, , size_sub_arrays);
 
-        //testCUDA(cudaFree(M_GPU[i]));
-        // cudafree(M_GPU)
+        swap_pointer = Actual_M_GPU;
+        Actual_M_GPU = Actual_M_GPU_merged;
+        Actual_M_GPU_merged = swap_pointer;
+        swap_pointer = M_GPU;
         M_GPU = M_GPU_merged;
+        M_GPU_merged = swap_pointer;
+
+        for (size_t i=0; i<d; i+=size_sub_arrays) {
+            tempo_array[i] = Actual_M_GPU + i;
+        }
+        testCUDA(cudaMemcpy(M_GPU, tempo_array, size_M_GPU * sizeof(int*), cudaMemcpyDeviceToHost));
+        size_sub_arrays *= 2;
+        for (size_t i=0; i<d; i+=size_sub_arrays) {
+            tempo_array[i] = Actual_M_GPU_merged + i;
+        }
+        testCUDA(cudaMemcpy(M_GPU_merged, tempo_array, size_M_GPU_merged * sizeof(int*), cudaMemcpyDeviceToHost));
+
+        size_M_GPU = size_M_GPU_merged;
+        size_M_GPU_merged /= 2;
     }
 
 // ============================== Merging the large arrays ==============================
+    while ( size_M_GPU > 1 ) {
+        mergeBigBatch_k(M_GPU, &(M_GPU[size_M_GPU_merged]), M_GPU_merged, size_MPU_merged, , size_sub_arrays);
 
+        swap_pointer = Actual_M_GPU;
+        Actual_M_GPU = Actual_M_GPU_merged;
+        Actual_M_GPU_merged = swap_pointer;
+        swap_pointer = M_GPU;
+        M_GPU = M_GPU_merged;
+        M_GPU_merged = swap_pointer;
+
+        for (size_t i=0; i<d; i+=size_sub_arrays) {
+            tempo_array[i] = Actual_M_GPU + i;
+        }
+        testCUDA(cudaMemcpy(M_GPU, tempo_array, size_M_GPU * sizeof(int*), cudaMemcpyDeviceToHost));
+        size_sub_arrays *= 2;
+        for (size_t i=0; i<d; i+=size_sub_arrays) {
+            tempo_array[i] = Actual_M_GPU_merged + i;
+        }
+        testCUDA(cudaMemcpy(M_GPU_merged, tempo_array, size_M_GPU_merged * sizeof(int*), cudaMemcpyDeviceToHost));
+
+        size_M_GPU = size_M_GPU_merged;
+        size_M_GPU_merged /= 2;
+
+    }
 
 //  ================================ Cleaning and end ===================================
 

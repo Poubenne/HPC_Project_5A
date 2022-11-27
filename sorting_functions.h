@@ -53,12 +53,10 @@ __global__ void SortSmall_k(int **M, const size_t NM, int j, int k){
 /*
     * @brief Sorts a group of small arrays using GPU parallelized Bitonic Sort
     * @param M contain the arrays to sort
-    * @param n_arrays The number of arrays to sort
-    * @param size_arrays The size of the arrays to sort (they all have the same)
-    * @param n_blocks The number of GPU blocks to use == n_arrays
-    * @param n_threads The number of threads per block == size_arrays
+    * @param n_arrays The number of arrays to sort, it's also the number of blocks
+    * @param size_arrays The size of the arrays to sort (they all have the same), it's also the number of threads per block
 */
-void SortSmall(int **M, const size_t n_arrays, const size_t size_arrays, const size_t n_blocks, const size_t n_threads) {
+void SortSmall(int **M, const size_t n_arrays, const size_t size_arrays) {
     int **M_GPU;
     int** tempo_array;
 
@@ -75,7 +73,7 @@ void SortSmall(int **M, const size_t n_arrays, const size_t size_arrays, const s
     for (k = 2; k <= size_arrays; k <<= 1) {
         /* Minor step */
         for (j=k>>1; j>0; j=j>>1) {
-            SortSmall_k<<<n_blocks, n_threads>>>(M_GPU, size_arrays, j, k);
+            SortSmall_k<<<n_arrays, size_arrays>>>(M_GPU, size_arrays, j, k);
 //            SortSmall_k<<<n_arrays, size_arrays>>>(M_GPU, size_arrays, j, k);
 //            SortSmall_k<<<N, NTPB>>>(M_GPU, NM_GPU, j, k);
         }
