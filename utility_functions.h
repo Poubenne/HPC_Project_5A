@@ -70,10 +70,18 @@ void GenerateRandomArray( int** arr, const size_t size ) {
     QuickSort(*arr, size);
 }
 
-void PrintList(int* A, size_t N){
+void PrintList(int* A, int N){
     
-    for (int i = 0; i < N; i++) {
+    for (int i = 0 ; i < N ; i++) {
         printf("%d ", A[i]);
     }
     printf("\n");
+}
+
+bool IsSorted(int* arr, int size){
+    for (int i = 1 ; i < size ; i++){
+        if (arr[i-1] > arr[i])
+            return false;
+    }
+    return true;
 }

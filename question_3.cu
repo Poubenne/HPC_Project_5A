@@ -3,10 +3,6 @@
 #include <time.h>
 
 #define N 1024
-#define d 1024
-
-int N_Blocks = N/d+10;
-int NTPB = 1024;
 
 void testCUDA(cudaError_t error, const char *file, int line)  {
 	if (error != cudaSuccess) {
@@ -73,14 +69,6 @@ void GenerateRandomArray( int** arr, const size_t length ) {
     QuickSort(*arr, length);
 }
 
-void GenerateUnsortedRandomArray( int** arr, const size_t length ) {
-    *arr = (int*) malloc(length*sizeof(int));
-
-    for (size_t i=0 ; i<length ; i++) {
-        (*arr)[i] = rand()%(5*length);
-    }
-}
-
 void PrintList(int* A, size_t length){
     
     for (int i = 0; i < length; i++) {
@@ -91,7 +79,7 @@ void PrintList(int* A, size_t length){
 
 
 
-__global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const size_t* NA, const size_t* NB) {
+__global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const size_t* NA, const size_t* NB, const size_t d) {
 //  Since the number of threads per block is a multiple of d, that means a single block can merge several arrays
 
 //  This is the thread's position in the array
@@ -106,6 +94,9 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
     if ( gbx >= N ) {// excedent block
         return;
     }
+
+/*    if (idx >= NA + NB)
+        return;*/
 
     int K[2];
     int P[2];
@@ -146,126 +137,11 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
     }
 }
 
-__global__ void SortSmall_k(int **M, const size_t *NM, int j, int k){
-// Each block sorts one array
-
-
-//  This is the thread's position in the array
-    int tidx = threadIdx.x;
-
-// This is the id of the table that the thread is going to help sorting
-    int bid = blockIdx.x;
-
-
-// HERE DUNNO WHY THIS IS NOT NECESSARY
-//    if (tidx >= NM[bid] || k >= NM[bid])
-    //if (tidx >= NM[bid])
-    //    return;
-
-
-    int ixj = tidx^j;
-
-    /* The threads with the lowest ids sort the array. */
-    if ((ixj)>tidx) {
-        if ((tidx&k)==0) {
-        /* Sort ascending */
-        if (M[bid][tidx]>M[bid][ixj]) {
-            /* exchange(i,ixj); */
-            int temp = M[bid][tidx];
-            M[bid][tidx] = M[bid][ixj];
-            M[bid][ixj] = temp;
-        }
-        }
-        if ((tidx&k)!=0) {
-        /* Sort descending */
-        if (M[bid][tidx]<M[bid][ixj]) {
-            /* exchange(i,ixj); */
-            int temp = M[bid][tidx];
-            M[bid][tidx] = M[bid][ixj];
-            M[bid][ixj] = temp;
-        }
-        }
-    }
-
-}
-
-
-void SortSmall(int **M, const size_t* NM)
-{
-//Sorts a group of small arrays using GPU parallelized Bitonic Sort
-
-    printf("Preparing Sort...\n");
-
-    int **M_GPU;
-    size_t *NM_GPU;
-    //size_t size = NUM_VALS * sizeof(float);
-
-    testCUDA(cudaMalloc(&NM_GPU, N * sizeof(size_t)));
-
-    int** tempo_array;
-    tempo_array = (int**) malloc(N*sizeof(int*));
-    
-    
-    printf("Creating M_GPU...\n");
-
-    for (int i = 0; i < N; i++){
-        testCUDA(cudaMalloc(&tempo_array[i], NM[i] * sizeof(int)));
-    }
-
-
-    testCUDA(cudaMalloc(&M_GPU, N * sizeof(int*)));
-    
-    for (int i = 0; i < N; i++){
-        testCUDA(cudaMemcpy(tempo_array[i], M[i], NM[i] * sizeof(int), cudaMemcpyHostToDevice));
-    }
-    
-    testCUDA(cudaMemcpy(M_GPU, tempo_array, N*sizeof(int*), cudaMemcpyHostToDevice));
-
-    printf("Done Preparing Sort!\n");
-
-
-    printf("Begin Sorting Procedure...\t");
-
-    int j, k;
-    /* Major step */
-    for (k = 2; k <= d; k <<= 1) {
-        /* Minor step */
-        for (j=k>>1; j>0; j=j>>1) {
-            //printf("k : %d || j : %d\n", k, j);
-            //SortSmall_k<<<N_Blocks, NTPB>>>(M_GPU, NM_GPU, j, k);
-            SortSmall_k<<<N, NTPB>>>(M_GPU, NM_GPU, j, k);
-            //printf("\n");
-        }
-    }
-
-    printf("Done Sorting!\n");
-    
-    printf("Importing M from GPU...\t");
-
-    for (size_t i=0;i<N;i++) {
-        testCUDA(cudaMemcpy(M[i], tempo_array[i], d * sizeof(int), cudaMemcpyDeviceToHost));
-    }
-
-    printf("M successfully imported from GPU\n");
-
-//TODO
-/*  
-    for (int i = 0; i < N; i++){
-        //testCUDA(cudaFree(tempo_array+i));
-        testCUDA(cudaFree(M_GPU[i]));
-    }
-    puts("Check");
-
-    free(tempo_array);
-    //free(tempo);
-    testCUDA(cudaFree(NM_GPU));
-    testCUDA(cudaFree(M_GPU));
-*/
-}
 
 
 int main()
 {
+    size_t d=8;
     printf("Creating arrays...\t");
     srand(time(NULL));
     int a_sizes[] = {1, 4, 6};
@@ -283,14 +159,6 @@ int main()
     for (size_t i=0;i<N;i++) {
         NB[i] = d - NA[i];
         GenerateRandomArray(B+i, NB[i]);
-    }
-
-
-    int** S = (int**) malloc(N*sizeof(int*));
-    size_t* NS = (size_t*) malloc(N*sizeof(size_t));
-    for (size_t i=0;i<N;i++) {
-        NS[i] = d;
-        GenerateUnsortedRandomArray(S+i, NS[i]);
     }
     printf(" Done!\n");
 
@@ -347,10 +215,13 @@ int main()
     printf(" Done!\n");
 
 
+
+    int N_Blocks = N/d+10;
+    int NTPB = 1024;
     
     printf("Merging...\t");
-    mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, NA_GPU, NB_GPU);
-    printf("Done!\n");
+    mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, NA_GPU, NB_GPU, d);
+    printf(" Done!\n");
     
 
     int** M = (int**) malloc(N * sizeof(int*));
@@ -366,7 +237,7 @@ int main()
 
 
 //    PrintList(M, (NA + NB));
-    printf("Verifying Merge result\n");
+    printf("Verifying result\n");
     for (size_t i=0;i<N;i++) {  
         if (! IsSortedAscending(M[i],d) ) {
             printf("The result isn't correct...\n");
@@ -375,17 +246,6 @@ int main()
     }
     printf("The result is correct!\n");
 
-
-    SortSmall(S, NS);
-
-    printf("Verifying Sort result\n");
-    for (size_t i=0;i<N;i++) {  
-        if (! IsSortedAscending(S[i],d) ) {
-            printf("The result isn't correct..., i = %zd\n", i);
-            exit(EXIT_FAILURE);
-        }
-    }
-    printf("The result is correct!\n");
 
 
     testCUDA(cudaFree(A_GPU));
@@ -396,13 +256,10 @@ int main()
     for (size_t i=0;i<N;i++) {
         free(A[i]);
         free(B[i]);
-        free(M[i]);
-        free(S[i]);
     }
     free(A);
     free(B);
     free(M);
-    free(S);
 
     return 0;
 }
