@@ -75,11 +75,11 @@ int main()
 
     int* A_GPU, *B_GPU, *M_GPU;
 
+    /*Creating Timer*/
     float TimerV;
     int niter = 1000000;
     cudaEvent_t start, stop;
     
-    /*Creating Timer*/
     
     testCUDA(cudaMalloc(&M_GPU, (NA + NB) * sizeof(int)));
     testCUDA(cudaMalloc(&A_GPU, NA * sizeof(int)));

@@ -136,11 +136,33 @@ int main(){
     testCUDA(cudaMemcpy(B_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
     printf("Done!\n");
 
+    /*Creating Timer*/
 
+    float TimerV;
+    int niter = 1000000;
+    cudaEvent_t start, stop;
     
+
+    /*Merging Arrays*/
     printf("Merging...\t");
-    mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, N, d);
+
+    testCUDA(cudaEventCreate(&start));
+    testCUDA(cudaEventCreate(&stop));
+    testCUDA(cudaEventRecord(start, 0));
+    
+    for(int i = 0; i < niter; i++)
+        mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, N, d/2);
+    
+    testCUDA(cudaEventRecord(stop, 0));
+    testCUDA(cudaEventSynchronize(stop));
+    testCUDA(cudaEventElapsedTime(&TimerV, start, stop));
+
     printf("Done!\n");
+
+    printf("Average time taken to merge arrays : %2f s\n", (TimerV / 1000) / niter);
+
+
+    /*Gathering and verifying results on CPU*/
 
 
     int** M = (int**) malloc(N * sizeof(int*));
