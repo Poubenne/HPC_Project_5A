@@ -76,9 +76,10 @@ bool IsSorted(int* arr, int size){
     * @param d = NA + NB is the size of M
 */
 __global__ void mergeAB(const int* A, const int* B, int* M, const size_t NA, const size_t NB, const size_t d) {
-//  Since the number of threads per block is a multiple of d, that means a single block can merge several arrays
+/*Here each thread will be in charge of one diagonal of the merge path of M, we can't split into blocks since M is too big*/
 
-//  This is the thread's position in the array
+
+//  This is the thread's global position
     size_t thread_position = threadIdx.x + blockIdx.x * blockDim.x;
 
     if ( thread_position >= d ) {// thread, if d isn't a power of 2
@@ -128,10 +129,18 @@ __global__ void mergeAB(const int* A, const int* B, int* M, const size_t NA, con
 int main()
 {
     srand(time(NULL));
-    size_t d = 4096;
+
+    int N_Blocks = 5;
+    int NTPB = 1024;
+    /*
+    N_Blocks*NTPB = d size of the large array
+    Each available thread has to be assigned one index of the merged array
+    */
+
+    size_t d = N_Blocks * NTPB;
     size_t N = d;
 
-    size_t NA = 2000;
+    size_t NA = d/3;
     int* A = (int*) malloc(NA * sizeof(int));
     GenerateRandomArray(&A, NA);
 
@@ -143,6 +152,7 @@ int main()
 
     int* A_GPU, *B_GPU, *M_GPU;
 
+    int niter = 300000;
     float TimerV;
     cudaEvent_t start, stop;
 
@@ -153,14 +163,12 @@ int main()
     testCUDA(cudaMemcpy(A_GPU, A, NA * sizeof(int), cudaMemcpyHostToDevice));
     testCUDA(cudaMemcpy(B_GPU, B, NB * sizeof(int), cudaMemcpyHostToDevice));
 
-    int N_Blocks = 4;
-    int NTPB = 1024;
-
     testCUDA(cudaEventCreate(&start));
     testCUDA(cudaEventCreate(&stop));
     testCUDA(cudaEventRecord(start, 0));
 
-    mergeAB<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB, d);
+    for(int i = 0; i < niter; i++)
+        mergeAB<<<N_Blocks, NTPB>>>(A_GPU, B_GPU, M_GPU, NA, NB, d);
 
     testCUDA(cudaEventRecord(stop, 0));
     testCUDA(cudaEventSynchronize(stop));
@@ -170,11 +178,14 @@ int main()
     testCUDA(cudaMemcpy(M, M_GPU, (NA + NB) * sizeof(int), cudaMemcpyDeviceToHost));
 
 
-    printf("M is sorted : %d\n", IsSorted(M, N));
+    if (IsSorted(M, N))
+        printf("M is correctly sorted!\n");
+    else
+        printf("M is not correctly sorted!\n");
 
     
 
-    printf("Time taken to merge arrays : %f s\n", TimerV / 1000);
+    printf("Time taken to merge arrays : %f s\n", (TimerV / 1000) / niter);
 
     testCUDA(cudaFree(A_GPU));
     testCUDA(cudaFree(B_GPU));

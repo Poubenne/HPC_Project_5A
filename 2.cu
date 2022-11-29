@@ -63,11 +63,11 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
 
 int main(){
 
-    int N = 512;
+    int N = 2000;
     int d = 1024;
 
     int N_Blocks = N/d+10;
-    int NTPB = 1024;
+    int NTPB = d;
 
 
     /*Creating arrays*/
@@ -139,7 +139,7 @@ int main(){
     /*Creating Timer*/
 
     float TimerV;
-    int niter = 1000000;
+    int niter = 100000;
     cudaEvent_t start, stop;
     
 
