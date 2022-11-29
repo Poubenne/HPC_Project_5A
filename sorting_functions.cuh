@@ -19,11 +19,6 @@ __global__ void SortSmall_k(int **M, const size_t NM, int j, int k){
 // This is the id of the table that the thread is going to help sorting
     int bid = blockIdx.x;
 
-// HERE DUNNO WHY THIS IS NOT NECESSARY
-//    if (tidx >= NM[bid] || k >= NM[bid])
-    //if (tidx >= NM[bid])
-    //    return;
-
     int ixj = tidx^j;
 
     /* The threads with the lowest ids sort the array. */
@@ -58,15 +53,15 @@ __global__ void SortSmall_k(int **M, const size_t NM, int j, int k){
 */
 void SortSmall(int **M, const size_t n_arrays, const size_t size_arrays) {
     int **M_GPU;
-    testCUDA(cudaMalloc(&M_GPU, n_arrays * sizeof(int*)));
+    cudaMalloc(&M_GPU, n_arrays * sizeof(int*));
     int** tempo_array;
     tempo_array = (int**) malloc(n_arrays*sizeof(int*));
     
     for (int i = 0; i < n_arrays; i++){
-        testCUDA(cudaMalloc(&(tempo_array[i]), size_arrays * sizeof(int)));
-        testCUDA(cudaMemcpy(tempo_array[i], M[i], size_arrays * sizeof(int), cudaMemcpyHostToDevice));
+        cudaMalloc(&(tempo_array[i]), size_arrays * sizeof(int));
+        cudaMemcpy(tempo_array[i], M[i], size_arrays * sizeof(int), cudaMemcpyHostToDevice);
     }
-    testCUDA(cudaMemcpy(M_GPU, tempo_array, n_arrays*sizeof(int*), cudaMemcpyHostToDevice));
+    cudaMemcpy(M_GPU, tempo_array, n_arrays*sizeof(int*), cudaMemcpyHostToDevice);
 
     int j, k;
     /* Major step */
@@ -78,7 +73,7 @@ void SortSmall(int **M, const size_t n_arrays, const size_t size_arrays) {
     }
 
     for (size_t i=0;i<n_arrays;i++) {
-        testCUDA(cudaMemcpy(M[i], tempo_array[i], size_arrays * sizeof(int), cudaMemcpyDeviceToHost));
+        cudaMemcpy(M[i], tempo_array[i], size_arrays * sizeof(int), cudaMemcpyDeviceToHost);
     }
 
 
@@ -111,12 +106,6 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
     unsigned int gbx = Qt + blockIdx.x*(blockDim.x/d);
 
 //  the thread works on M[gbx][tidx]
-
-//  We pick specific sizes of arrays, so this is not necessary and result in a lost of performance
-//  TODO : delete
-    if ( gbx >= n_arrays ) {// excedent block
-        return;
-    }
 
     int K[2];
     int P[2];
@@ -174,12 +163,6 @@ __global__ void mergeBigBatch_k(const int** A, const int** B, int** M, const siz
     size_t array_id = blockIdx.x / (gridDim.x / n_arrays);
 //  This is the thread's position in the merged array
     size_t thread_position = threadIdx.x + (blockIdx.x % (gridDim.x / n_arrays)) * blockDim.x;
-
-//  We pick specific sizes of arrays, so this is not necessary and result in a lost of performance
-//  TODO : delete
-    if ( array_id >= n_arrays ) {
-        return;
-    }
 
     int K[2];
     int P[2];

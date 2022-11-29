@@ -78,6 +78,12 @@ void GenerateUnsortedRandomArray( int** arr, const size_t length ) {
     }
 }
 
+void ReRandomizeArray( int* arr, const size_t length ) {
+    for (size_t i=0 ; i<length ; i++) {
+        arr[i] = rand()%(5*length);
+    }
+}
+
 void PrintList(int* A, int N){
     
     for (int i = 0 ; i < N ; i++) {
