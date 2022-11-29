@@ -77,9 +77,9 @@ float SortSmall(int **M, size_t N, size_t d) {
     int j, k;
     /* Major step */
     cudaEventRecord(start, 0);
-    for (k = 2; k <= d; k <<= 1) {
+    for (k = 2; k <= d; k *= 2) {
         /* Minor step */
-        for (j=k>>1; j>0; j=j>>1) {
+        for (j=k/2; j>0; j/=2) {
             SortSmall_k<<<N, d>>>(M_GPU, j, k);
         }
     }
