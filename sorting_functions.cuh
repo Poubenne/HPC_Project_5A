@@ -1,8 +1,6 @@
-#pragma once
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
-#include "utility_functions.cuh"
 
 /*
     Header files shouldn't contain code, but this is a small project, so whatever
@@ -60,45 +58,34 @@ __global__ void SortSmall_k(int **M, const size_t NM, int j, int k){
 */
 void SortSmall(int **M, const size_t n_arrays, const size_t size_arrays) {
     int **M_GPU;
-    int** tempo_array;
-
-    tempo_array = (int**) malloc(n_arrays*sizeof(int*));
     testCUDA(cudaMalloc(&M_GPU, n_arrays * sizeof(int*)));
+    int** tempo_array;
+    tempo_array = (int**) malloc(n_arrays*sizeof(int*));
     
     for (int i = 0; i < n_arrays; i++){
+        testCUDA(cudaMalloc(&(tempo_array[i]), size_arrays * sizeof(int)));
         testCUDA(cudaMemcpy(tempo_array[i], M[i], size_arrays * sizeof(int), cudaMemcpyHostToDevice));
     }
     testCUDA(cudaMemcpy(M_GPU, tempo_array, n_arrays*sizeof(int*), cudaMemcpyHostToDevice));
 
     int j, k;
     /* Major step */
-    for (k = 2; k <= size_arrays; k <<= 1) {
+    for (k = 2; k <= size_arrays; k *= 2 ) {
         /* Minor step */
-        for (j=k>>1; j>0; j=j>>1) {
+        for (j=k/2; j>0; j/=2) {
             SortSmall_k<<<n_arrays, size_arrays>>>(M_GPU, size_arrays, j, k);
-//            SortSmall_k<<<n_arrays, size_arrays>>>(M_GPU, size_arrays, j, k);
-//            SortSmall_k<<<N, NTPB>>>(M_GPU, NM_GPU, j, k);
         }
     }
 
     for (size_t i=0;i<n_arrays;i++) {
-//        testCUDA(cudaMemcpy(M[i], tempo_array[i], size_arrays * sizeof(int), cudaMemcpyDeviceToHost));
-        testCUDA(cudaMemcpy(M[i], M_GPU[i], size_arrays * sizeof(int), cudaMemcpyDeviceToHost));
+        testCUDA(cudaMemcpy(M[i], tempo_array[i], size_arrays * sizeof(int), cudaMemcpyDeviceToHost));
     }
 
-//TODO
-/*  
-    for (int i = 0; i < N; i++){
-        //testCUDA(cudaFree(tempo_array+i));
-        testCUDA(cudaFree(M_GPU[i]));
-    }
-    puts("Check");
 
-    free(tempo_array);
-    //free(tempo);
-    testCUDA(cudaFree(NM_GPU));
-    testCUDA(cudaFree(M_GPU));
-*/
+    for (int i = 0; i < n_arrays; i++){
+        cudaFree(tempo_array[i]);
+    }
+    cudaFree(M_GPU);
 }
 
 //  =========================================================== Merging small arrays ================================================================
@@ -127,7 +114,7 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
 
 //  We pick specific sizes of arrays, so this is not necessary and result in a lost of performance
 //  TODO : delete
-    if ( gbx >= N ) {// excedent block
+    if ( gbx >= n_arrays ) {// excedent block
         return;
     }
 
@@ -183,9 +170,10 @@ __global__ void mergeSmallBatch_k(const int** A, const int** B, int** M, const s
 __global__ void mergeBigBatch_k(const int** A, const int** B, int** M, const size_t n_arrays, const size_t size_arrays, const size_t d) {
 //  Several blocks have to merge a single array
 
+//  The array in which the thread is working
+    size_t array_id = blockIdx.x / (gridDim.x / n_arrays);
 //  This is the thread's position in the merged array
-    size_t thread_position = threadIdx.x + blockIdx.x * blockDim.x;
-    size_t array_id = blockIdx.x / (d/blockDim.x);
+    size_t thread_position = threadIdx.x + (blockIdx.x % (gridDim.x / n_arrays)) * blockDim.x;
 
 //  We pick specific sizes of arrays, so this is not necessary and result in a lost of performance
 //  TODO : delete
