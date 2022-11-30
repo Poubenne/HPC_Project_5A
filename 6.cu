@@ -186,7 +186,6 @@ int main(void) {
 
     int* M;
 
-    printf("[");
     for (d=4; d<=64*4096; d*=2) {
         GenerateUnsortedRandomArray(&M, d);
         cudaEventRecord(start, 0);
@@ -218,10 +217,9 @@ int main(void) {
             }
         }
         free(M);
-//        printf("d : %zu, time for %zu runs : %2f s, average time : %2f s\n\t(Quicksort took %2fs)\n", d,  n_tries, total_time / 1000.0, (total_time / 1000.0) / n_tries, quicksort_time/1000.0);
-            printf("%2f, ",(total_time / 1000.0) / n_tries);
+        printf("d : %zu, time for %zu runs : %2f s, average time : %2f s\n\t(Quicksort took %2fs)\n", d,  n_tries, total_time / 1000.0, (total_time / 1000.0) / n_tries, quicksort_time/1000.0);
+            //printf("%2f, ",(total_time / 1000.0) / n_tries);
     }
-    printf("]\n");
 
 
     return 0;
