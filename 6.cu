@@ -180,6 +180,9 @@ int main(void) {
     float elapsed_time;
     float quicksort_time;
     cudaEvent_t start, stop;
+//  no cudatest in the final version
+//  testCUDA(cudaMalloc(&M_GPU, N * sizeof(int*)));
+//  testCUDA(cuda_function);
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     float total_time;
