@@ -178,7 +178,7 @@ int main(void) {
             }
         }
         free(M);
-        printf("d : %zu, time for %zu runs : %2f s\n", d,  n_tries, total_time / 1000.0);
+        printf("d : %zu, time for %zu runs : %2f s, average time : %2f s\n", d,  n_tries, total_time / 1000.0, (total_time / 1000.0) / n_tries);
     }
 
 
