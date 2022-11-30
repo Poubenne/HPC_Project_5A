@@ -95,6 +95,7 @@ float SortSmall(int **M, size_t N, size_t d) {
     for (int i = 0; i < N; i++){
         cudaFree(tempo_array[i]);
     }
+    free(tempo_array);
     cudaFree(M_GPU);
 
     return elapsed_time;
