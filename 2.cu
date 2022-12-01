@@ -109,31 +109,31 @@ int main(){
 
 //  Creating M_GPU
     printf("Creating M_GPU...\t");
-    testCUDA(cudaMalloc(&M_GPU, N * sizeof(int*)));
+    cudaMalloc(&M_GPU, N * sizeof(int*));
     for (size_t i=0;i<N;i++) {
-        testCUDA(cudaMalloc(tempo_array+i, d * sizeof(int)));
+        cudaMalloc(tempo_array+i, d * sizeof(int));
     }
-    testCUDA(cudaMemcpy(M_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
+    cudaMemcpy(M_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice);
     printf("Done!\n");
 
 //  Creating A_GPU
     printf("Creating A_GPU...\t");
-    testCUDA(cudaMalloc(&A_GPU, N * sizeof(int*)));
+    cudaMalloc(&A_GPU, N * sizeof(int*));
     for (size_t i=0;i<N;i++) {
-        testCUDA(cudaMalloc(tempo_array+i, d/2 * sizeof(int)));
-        testCUDA(cudaMemcpy(tempo_array[i], A[i], d/2 * sizeof(int), cudaMemcpyHostToDevice));
+        cudaMalloc(tempo_array+i, d/2 * sizeof(int));
+        cudaMemcpy(tempo_array[i], A[i], d/2 * sizeof(int), cudaMemcpyHostToDevice);
     }
-    testCUDA(cudaMemcpy(A_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
+    cudaMemcpy(A_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice);
     printf("Done!\n");
 
 //  Creating B_GPU
     printf("Creating B_GPU...\t");
-    testCUDA(cudaMalloc(&B_GPU, N * sizeof(int*)));
+    cudaMalloc(&B_GPU, N * sizeof(int*));
     for (size_t i=0;i<N;i++) {
-        testCUDA(cudaMalloc(tempo_array+i, d/2 * sizeof(int)));
-        testCUDA(cudaMemcpy(tempo_array[i], B[i], d/2 * sizeof(int), cudaMemcpyHostToDevice));
+        cudaMalloc(tempo_array+i, d/2 * sizeof(int));
+        cudaMemcpy(tempo_array[i], B[i], d/2 * sizeof(int), cudaMemcpyHostToDevice);
     }
-    testCUDA(cudaMemcpy(B_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice));
+    cudaMemcpy(B_GPU, tempo_array, N * sizeof(int*), cudaMemcpyHostToDevice);
     printf("Done!\n");
 
     /*Creating Timer*/
@@ -146,16 +146,16 @@ int main(){
     /*Merging Arrays*/
     printf("Merging...\t");
 
-    testCUDA(cudaEventCreate(&start));
-    testCUDA(cudaEventCreate(&stop));
-    testCUDA(cudaEventRecord(start, 0));
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
     
     for(int i = 0; i < niter; i++)
         mergeSmallBatch_k<<<N_Blocks, NTPB>>>((const int**)A_GPU, (const int**)B_GPU, M_GPU, N, d/2);
     
-    testCUDA(cudaEventRecord(stop, 0));
-    testCUDA(cudaEventSynchronize(stop));
-    testCUDA(cudaEventElapsedTime(&TimerV, start, stop));
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&TimerV, start, stop);
 
     printf("Done!\n");
 
@@ -166,11 +166,11 @@ int main(){
 
 
     int** M = (int**) malloc(N * sizeof(int*));
-    testCUDA(cudaMemcpy(tempo_array, M_GPU, N * sizeof(int*), cudaMemcpyDeviceToHost));
+    cudaMemcpy(tempo_array, M_GPU, N * sizeof(int*), cudaMemcpyDeviceToHost);
     printf("M created\n");
     for (size_t i=0;i<N;i++) {
         M[i] = (int*) malloc(d * sizeof(int));
-        testCUDA(cudaMemcpy(M[i], tempo_array[i], d * sizeof(int), cudaMemcpyDeviceToHost));
+        cudaMemcpy(M[i], tempo_array[i], d * sizeof(int), cudaMemcpyDeviceToHost);
     }
     printf("M filled\n");
 
