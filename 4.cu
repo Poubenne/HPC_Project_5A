@@ -22,28 +22,28 @@ __global__ void SortSmall_k(int **M, int j, int k) {
     //if (tidx >= NM[bid])
     //    return;
 
+    //index of i + j
+    int swap_index = tidx^j;
 
-    int ixj = tidx^j;
-
-    /* The threads with the lowest ids sort the array. */
-    if ((ixj)>tidx) {
+    // The threads with the lowest ids sort the array.
+    if ((swap_index)>tidx) {
         if ((tidx&k)==0) {
-        /* Sort ascending */
-        if (M[bid][tidx]>M[bid][ixj]) {
-            /* exchange(i,ixj); */
-            int temp = M[bid][tidx];
-            M[bid][tidx] = M[bid][ixj];
-            M[bid][ixj] = temp;
-        }
+            // Sort the array in ascending order
+            if (M[bid][tidx]>M[bid][swap_index]) {
+                /* Swap index i and i+j */
+                int temp = M[bid][tidx];
+                M[bid][tidx] = M[bid][swap_index];
+                M[bid][swap_index] = temp;
+            }
         }
         if ((tidx&k)!=0) {
-        /* Sort descending */
-        if (M[bid][tidx]<M[bid][ixj]) {
-            /* exchange(i,ixj); */
-            int temp = M[bid][tidx];
-            M[bid][tidx] = M[bid][ixj];
-            M[bid][ixj] = temp;
-        }
+            // Sort the array in descending order
+            if (M[bid][tidx]<M[bid][swap_index]) {
+                /* Swap index i and i+j */
+                int temp = M[bid][tidx];
+                M[bid][tidx] = M[bid][swap_index];
+                M[bid][swap_index] = temp;
+            }
         }
     }
 }
@@ -75,10 +75,10 @@ float SortSmall(int **M, size_t N, size_t d) {
     cudaEventCreate(&stop);
 
     int j, k;
-    /* Major step */
     cudaEventRecord(start, 0);
+    // Progressively increase the size of major bitonic sorted array with each iteration
     for (k = 2; k <= d; k *= 2) {
-        /* Minor step */
+        //Decrease the sorting step for each iteration to be able to correctly sort major size k arrays from current iteration
         for (j=k/2; j>0; j/=2) {
             SortSmall_k<<<N, d>>>(M_GPU, j, k);
         }
