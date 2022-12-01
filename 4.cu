@@ -16,12 +16,6 @@ __global__ void SortSmall_k(int **M, int j, int k) {
 // This is the id of the table that the thread is going to help sorting
     int bid = blockIdx.x;
 
-
-// HERE DUNNO WHY THIS IS NOT NECESSARY
-//    if (tidx >= NM[bid] || k >= NM[bid])
-    //if (tidx >= NM[bid])
-    //    return;
-
     //index of i + j
     int swap_index = tidx^j;
 
@@ -30,7 +24,7 @@ __global__ void SortSmall_k(int **M, int j, int k) {
         if ((tidx&k)==0) {
             // Sort the array in ascending order
             if (M[bid][tidx]>M[bid][swap_index]) {
-                /* Swap index i and i+j */
+                // Swap index i and i+j
                 int temp = M[bid][tidx];
                 M[bid][tidx] = M[bid][swap_index];
                 M[bid][swap_index] = temp;
@@ -39,7 +33,7 @@ __global__ void SortSmall_k(int **M, int j, int k) {
         if ((tidx&k)!=0) {
             // Sort the array in descending order
             if (M[bid][tidx]<M[bid][swap_index]) {
-                /* Swap index i and i+j */
+                // Swap index i and i+j
                 int temp = M[bid][tidx];
                 M[bid][tidx] = M[bid][swap_index];
                 M[bid][swap_index] = temp;
